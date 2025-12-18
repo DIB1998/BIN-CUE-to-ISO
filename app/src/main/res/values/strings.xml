@@ -1,0 +1,30 @@
+<resources>
+    <string name="app_name">BINeCUE to ISO</string>
+
+    <string name="convert_title">Convert BIN/CUE to ISO</string>
+    <string name="select_folder">Select Folder</string>
+    <string name="files_selected">Files selected</string>
+    <string name="no_folder_selected">No folder selected</string>
+    <string name="bin_file">BIN File</string>
+    <string name="cue_file">CUE File</string>
+    <string name="convert_to_iso">CONVERT TO ISO</string>
+
+    <string name="dialog_success_title">Success</string>
+    <string name="dialog_success_message">The conversion was completed successfully!</string>
+    <string name="dialog_error_title">Error</string>
+    <string name="dialog_ok">OK</string>
+
+    <string name="error_files_not_found_title">Files not found</string>
+    <string name="error_files_not_found_message">The selected folder does not contain the required .bin and .cue files.</string>
+    <string name="error_invalid_selection_title">Invalid selection</string>
+    <string name="error_invalid_selection_message">Please select a folder.</string>
+
+    <string name="unknown_file">Unknown</string>
+    <string name="default_iso_name">converted.iso</string>
+
+    <string name="change_language">Change language</string>
+    <string name="choose_language">Choose language</string>
+    <string name="language_english">English</string>
+    <string name="language_portuguese">Portuguese BR</string>
+    <string name="dialog_cancel">Cancel</string>
+</resources>
