@@ -3,8 +3,8 @@ package com.dibs.binecuetoiso
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,26 +24,28 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.os.LocaleListCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dibs.binecuetoiso.ui.ConvertScreen
 import com.dibs.binecuetoiso.ui.theme.BINeCUEtoISOTheme
-import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
+    private val viewModel: MainViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             BINeCUEtoISOTheme {
-                MainScreen()
+                MainScreen(viewModel = viewModel)
             }
         }
     }
@@ -51,13 +53,8 @@ class MainActivity : AppCompatActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen() {
-    var showLanguageDialog by remember { mutableStateOf(false) }
-
-    fun setLocale(language: String) {
-        val appLocale = LocaleListCompat.forLanguageTags(language)
-        AppCompatDelegate.setApplicationLocales(appLocale)
-    }
+fun MainScreen(viewModel: MainViewModel = viewModel()) {
+    val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -69,7 +66,7 @@ fun MainScreen() {
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.End
             ) {
-                IconButton(onClick = { showLanguageDialog = true }) {
+                IconButton(onClick = { viewModel.onShowLanguageDialog() }) {
                     Icon(
                         Icons.Default.Language,
                         contentDescription = stringResource(R.string.change_language)
@@ -80,25 +77,24 @@ fun MainScreen() {
         }
     }
 
-    if (showLanguageDialog) {
+    if (uiState.showLanguageDialog) {
         LanguageSelectionDialog(
-            onDismissRequest = { showLanguageDialog = false },
-            onLanguageSelected = {
-                setLocale(it)
-                showLanguageDialog = false
-            }
+            currentLanguage = uiState.currentLanguage,
+            onDismissRequest = { viewModel.onDismissLanguageDialog() },
+            onLanguageSelected = { viewModel.setLocale(it) }
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LanguageSelectionDialog(
+    currentLanguage: String,
     onDismissRequest: () -> Unit,
     onLanguageSelected: (String) -> Unit
 ) {
     val languages = listOf("en" to stringResource(R.string.language_english), "pt" to stringResource(R.string.language_portuguese))
-    val currentLanguage = AppCompatDelegate.getApplicationLocales()[0]?.language ?: Locale.getDefault().language
-    var selectedLanguage by remember { mutableStateOf(currentLanguage) }
+    var selectedLanguage by rememberSaveable { mutableStateOf(currentLanguage) }
 
     AlertDialog(
         onDismissRequest = onDismissRequest,

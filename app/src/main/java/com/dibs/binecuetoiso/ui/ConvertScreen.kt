@@ -1,9 +1,9 @@
 package com.dibs.binecuetoiso.ui
 
 import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,10 +31,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -46,6 +44,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dibs.binecuetoiso.R
 import com.dibs.binecuetoiso.viewmodel.ConversionResult
 import com.dibs.binecuetoiso.viewmodel.ConvertViewModel
+import com.dibs.binecuetoiso.viewmodel.DialogState
 
 @Composable
 fun ConvertScreen(
@@ -53,69 +52,28 @@ fun ConvertScreen(
     convertViewModel: ConvertViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    var binUri by remember { mutableStateOf<Uri?>(null) }
-    var cueUri by remember { mutableStateOf<Uri?>(null) }
-    var isoUri by remember { mutableStateOf<Uri?>(null) }
-    var isoOutputName by remember { mutableStateOf(context.getString(R.string.default_iso_name)) }
-
-    var showInvalidFileDialog by remember { mutableStateOf(false) }
-    var invalidFileDialogTitle by remember { mutableStateOf("") }
-    var invalidFileDialogMessage by remember { mutableStateOf("") }
-
-    fun showInvalidFileDialog(title: String, message: String) {
-        invalidFileDialogTitle = title
-        invalidFileDialogMessage = message
-        showInvalidFileDialog = true
-    }
-
-    fun getFileName(uri: Uri): String {
-        var fileName = context.getString(R.string.unknown_file)
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (cursor.moveToFirst() && nameIndex != -1) {
-                fileName = cursor.getString(nameIndex)
-            }
-        }
-        return fileName
-    }
+    val uiState by convertViewModel.uiState.collectAsState()
 
     val folderLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            val folder = DocumentFile.fromTreeUri(context, uri)
-            if (folder != null && folder.isDirectory) {
-                val files = folder.listFiles()
-                val foundBin = files.find { it.name?.endsWith(".bin", ignoreCase = true) == true }
-                val foundCue = files.find { it.name?.endsWith(".cue", ignoreCase = true) == true }
-
-                if (foundBin != null && foundCue != null) {
-                    binUri = foundBin.uri
-                    cueUri = foundCue.uri
-                    isoOutputName = foundBin.name?.substringBeforeLast('.') + ".iso"
-                } else {
-                    showInvalidFileDialog(context.getString(R.string.error_files_not_found_title), context.getString(R.string.error_files_not_found_message))
-                }
-            } else {
-                showInvalidFileDialog(context.getString(R.string.error_invalid_selection_title), context.getString(R.string.error_invalid_selection_message))
-            }
-        }
-    }
+        contract = ActivityResultContracts.OpenDocumentTree(),
+        onResult = { uri -> convertViewModel.onFolderSelected(context, uri) }
+    )
 
     val createIsoLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
-    ) { uri: Uri? ->
-        isoUri = uri
-        if (binUri != null && cueUri != null && isoUri != null) {
-            convertViewModel.startConversion(context, binUri!!, cueUri!!, isoUri!!)
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
+        onResult = { uri: Uri? ->
+            if (uri != null) {
+                convertViewModel.startConversion(context, uri)
+            }
         }
-    }
+    )
 
-    if (showInvalidFileDialog) {
+    val dialogState = uiState.dialogState
+    if (dialogState is DialogState.InvalidFile) {
         ResultDialog(
-            onDismissRequest = { showInvalidFileDialog = false },
-            title = invalidFileDialogTitle,
-            message = invalidFileDialogMessage,
+            onDismissRequest = { convertViewModel.dismissDialog() },
+            title = dialogState.title,
+            message = dialogState.message,
             icon = { Icon(Icons.Outlined.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp)) }
         )
     }
@@ -155,9 +113,9 @@ fun ConvertScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(text = stringResource(R.string.select_folder), style = MaterialTheme.typography.titleMedium)
                         Text(
-                            text = if (binUri != null && cueUri != null) stringResource(R.string.files_selected) else stringResource(R.string.no_folder_selected),
+                            text = if (uiState.binUri != null && uiState.cueUri != null) stringResource(R.string.files_selected) else stringResource(R.string.no_folder_selected),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = if (binUri != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            color = if (uiState.binUri != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -167,10 +125,12 @@ fun ConvertScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (binUri != null && cueUri != null) {
-                FileSelectedInfo(stringResource(R.string.bin_file), binUri?.let { getFileName(it) })
-                Spacer(modifier = Modifier.height(8.dp))
-                FileSelectedInfo(stringResource(R.string.cue_file), cueUri?.let { getFileName(it) })
+            AnimatedVisibility(visible = uiState.binUri != null && uiState.cueUri != null) {
+                Column {
+                    FileSelectedInfo(stringResource(R.string.bin_file), uiState.binUri?.let { DocumentFile.fromSingleUri(context, it)?.name })
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FileSelectedInfo(stringResource(R.string.cue_file), uiState.cueUri?.let { DocumentFile.fromSingleUri(context, it)?.name })
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -178,35 +138,39 @@ fun ConvertScreen(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxWidth().animateContentSize()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize()
             ) {
-                if (convertViewModel.isConverting) {
+                AnimatedVisibility(visible = uiState.isConverting) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         LinearProgressIndicator(
-                            progress = { convertViewModel.progress },
+                            progress = { uiState.progress },
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            text = "${(convertViewModel.progress * 100).toInt()}%",
+                            text = "${(uiState.progress * 100).toInt()}%",
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
                 }
 
                 FilledTonalButton(
-                    onClick = { createIsoLauncher.launch(isoOutputName) },
-                    enabled = binUri != null && cueUri != null && !convertViewModel.isConverting,
-                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                    onClick = { createIsoLauncher.launch(uiState.isoOutputName) },
+                    enabled = uiState.binUri != null && uiState.cueUri != null && !uiState.isConverting,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
                 ) {
                     Text(stringResource(R.string.convert_to_iso))
                 }
             }
 
-            when (val result = convertViewModel.conversionResult) {
+            when (val result = uiState.conversionResult) {
                 ConversionResult.Success -> {
                     ResultDialog(
                         onDismissRequest = { convertViewModel.resetConversionResult() },
