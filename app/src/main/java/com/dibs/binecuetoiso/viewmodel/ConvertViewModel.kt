@@ -2,9 +2,6 @@ package com.dibs.binecuetoiso.viewmodel
 
 import android.content.Context
 import android.net.Uri
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -17,27 +14,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-sealed class ConversionResult {
-    object Idle : ConversionResult()
-    object Success : ConversionResult()
-    data class Error(val message: String) : ConversionResult()
-}
-
-sealed class DialogState {
-    object Hidden : DialogState()
-    data class InvalidFile(val title: String, val message: String) : DialogState()
-}
-
-data class ConvertUiState(
-    val binUri: Uri? = null,
-    val cueUri: Uri? = null,
-    val isoOutputName: String = "",
-    val progress: Float = 0f,
-    val isConverting: Boolean = false,
-    val conversionResult: ConversionResult = ConversionResult.Idle,
-    val dialogState: DialogState = DialogState.Hidden
-)
 
 class ConvertViewModel : ViewModel() {
 
